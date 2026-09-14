@@ -107,6 +107,13 @@ Using this library with asyncio
 
 ``AsyncClient`` runs the same underlying request on a background thread, so it doesn't require an additional HTTP dependency.
 
+Two things are worth knowing before reaching for it:
+
+* Each awaited call occupies a thread from the default ``asyncio`` executor for the duration of the request. Throughput is therefore bounded by that executor's size, not by the event loop, so this is not equivalent to a natively async HTTP client under high concurrency.
+* Helpers that take a client and call it synchronously — ``Entry.incoming_references``, ``Asset.incoming_references`` and ``SyncPage.next`` — need the underlying synchronous client, available as ``sync_client``::
+
+    references = await asyncio.to_thread(entry.incoming_references, client.sync_client)
+
 Authentication
 ~~~~~~~~~~~~~~
 
