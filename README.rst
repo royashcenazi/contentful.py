@@ -90,6 +90,23 @@ This library can also be used with the Preview API. In order to do so, you need 
 You can query for entries, assets, etc. very similar as described in the `Delivery API Documentation <https://www.contentful.com/developers/docs/references/content-delivery-api/>`_.
 Please note, that all methods of the Python client library are ``snake_cased``, instead of JavaScript's ``camelCase``.
 
+Using this library with asyncio
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``contentful.Client`` performs synchronous, blocking HTTP requests. If you're working within an ``asyncio`` application and don't want those requests to block the event loop, use ``contentful.AsyncClient`` instead. It accepts the same arguments as ``Client``, and every method that performs a network request can be awaited::
+
+    import asyncio
+    import contentful
+
+    async def main():
+        client = contentful.AsyncClient('cfexampleapi', 'b4c0n73n7fu1')
+        entry = await client.entry('nyancat')
+        return entry
+
+    entry = asyncio.run(main())
+
+``AsyncClient`` runs the same underlying request on a background thread, so it doesn't require an additional HTTP dependency.
+
 Authentication
 ~~~~~~~~~~~~~~
 
