@@ -51,6 +51,12 @@ class AsyncClientTest(TestCase):
         for content_type in cached:
             self.assertIsInstance(content_type, ContentType)
 
+    def test_async_client_reports_requested_content_type_cache_setting(self):
+        self.assertTrue(AsyncClient('cfexampleapi', 'b4c0n73n7fu1').content_type_cache)
+        self.assertFalse(
+            AsyncClient('cfexampleapi', 'b4c0n73n7fu1', content_type_cache=False).content_type_cache
+        )
+
     def test_async_client_does_not_perform_io_on_construction(self):
         with requests_mock.mock() as m:
             m.register_uri('GET', ANY, status_code=200, json={'items': []})

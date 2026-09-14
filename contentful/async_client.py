@@ -16,6 +16,13 @@ method that performs a network request is exposed as a coroutine that runs
 the original (blocking) call in a background thread via
 :func:`asyncio.to_thread`.
 
+:class:`AsyncClient` wraps a :class:`Client <contentful.Client>` rather than
+subclassing it. Replacing the public methods with coroutines on a subclass
+would break callers that receive a client and invoke those methods
+synchronously, such as
+:meth:`ContentTypeCache.update_cache <contentful.content_type_cache.ContentTypeCache.update_cache>`,
+which stores the result of ``client.content_types()``.
+
 :copyright: (c) 2016 by Contentful GmbH.
 :license: MIT, see LICENSE for more details.
 """
@@ -75,12 +82,20 @@ class AsyncClient(object):
     """
 
     def __init__(self, *args, **kwargs):
+        # Client.__init__ warms the content type cache with a blocking request,
+        # so suppress it here and redo it lazily in _invoke, off the event loop.
         self._pending_content_type_cache = kwargs.get('content_type_cache', True)
+        # Awaited calls run on arbitrary executor threads; the lock keeps the
+        # deferred warm to a single request.
         self._cache_lock = threading.Lock()
         kwargs['content_type_cache'] = False
         self.sync_client = Client(*args, **kwargs)
+        # Report the requested value, which Client only reads during construction.
+        self.sync_client.content_type_cache = self._pending_content_type_cache
 
     def __getattr__(self, name):
+        # Read through self.__dict__ rather than self.sync_client, which would
+        # recurse here if the wrapped Client raised during construction.
         try:
             sync_client = self.__dict__['sync_client']
         except KeyError:
@@ -88,6 +103,8 @@ class AsyncClient(object):
         return getattr(sync_client, name)
 
     def __setattr__(self, name, value):
+        # Configuration writes belong on the wrapped client so that requests
+        # pick them up; our own private attributes stay on the wrapper.
         sync_client = self.__dict__.get('sync_client')
         if sync_client is not None and hasattr(sync_client, name):
             setattr(sync_client, name, value)
@@ -95,6 +112,7 @@ class AsyncClient(object):
             object.__setattr__(self, name, value)
 
     def _invoke(self, name, *args, **kwargs):
+        # Always called on an executor thread, so blocking here is safe.
         with self._cache_lock:
             if self._pending_content_type_cache:
                 self._pending_content_type_cache = False
