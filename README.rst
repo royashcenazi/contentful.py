@@ -110,6 +110,7 @@ Using this library with asyncio
 Two things are worth knowing before reaching for it:
 
 * Each awaited call occupies a thread from the default ``asyncio`` executor for the duration of the request. Throughput is therefore bounded by that executor's size, not by the event loop, so this is not equivalent to a natively async HTTP client under high concurrency.
+* Rate limit retries sleep on the worker thread, and ``max_rate_limit_wait`` defaults to 60 seconds. A burst of 429 responses can therefore park every thread in the default executor, which also starves unrelated ``asyncio.to_thread`` calls elsewhere in your application. Pass ``max_rate_limit_retries=0`` and handle the retry yourself with ``asyncio.sleep`` if that matters to you.
 * Helpers that take a client and call it synchronously — ``Entry.incoming_references``, ``Asset.incoming_references`` and ``SyncPage.next`` — need the underlying synchronous client, available as ``sync_client``::
 
     references = await asyncio.to_thread(entry.incoming_references, client.sync_client)
