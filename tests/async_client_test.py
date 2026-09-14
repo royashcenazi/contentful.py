@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import asyncio
 import inspect
+import time
 
 import requests_mock
 import vcr
@@ -73,16 +74,24 @@ class AsyncClientTest(TestCase):
 
         self.assertEqual(str(entry), "<Entry[cat] id='nyancat'>")
 
-    @vcr.use_cassette('fixtures/client/entries.yaml', decode_compressed_response=True, allow_playback_repeats=True)
     def test_async_client_runs_requests_concurrently(self):
         client = AsyncClient('cfexampleapi', 'b4c0n73n7fu1', content_type_cache=False)
 
-        async def fetch_both():
-            return await asyncio.gather(client.entries(), client.entries())
+        def slow_entries(query=None):
+            time.sleep(0.2)
+            return []
 
-        first, second = asyncio.run(fetch_both())
+        client.sync_client.entries = slow_entries
 
-        self.assertEqual(len(first), len(second))
+        async def fetch_many():
+            return await asyncio.gather(*[client.entries() for _ in range(4)])
+
+        started = time.perf_counter()
+        results = asyncio.run(fetch_many())
+        elapsed = time.perf_counter() - started
+
+        self.assertEqual(len(results), 4)
+        self.assertLess(elapsed, 0.5, "calls serialized instead of running concurrently")
 
     @vcr.use_cassette('fixtures/client/entry_incoming_references.yaml', decode_compressed_response=True)
     def test_async_client_supports_incoming_references_through_sync_client(self):
